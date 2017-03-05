@@ -4,8 +4,6 @@
  * and open the template in the editor.
  */
 
-import java.lang.Comparable;
-
 /**
  *
  * @author jinwook
@@ -13,14 +11,9 @@ import java.lang.Comparable;
 public enum SecurityLevel
 {
     HIGH, LOW;
-    
+
     public boolean dominates(SecurityLevel sl)
     {
-        return this == HIGH ? true : sl == LOW ? true : false;
-    }
-    
-    public boolean equals(SecurityLevel sl)
-    {
-        return this == sl;
+        return this == HIGH || sl == LOW;
     }
 }

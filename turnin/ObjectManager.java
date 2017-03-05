@@ -7,60 +7,113 @@
 import java.util.ArrayList;
 
 /**
- *
  * @author jinwook
  */
-public class ObjectManager {
-    private ArrayList<BLPobject> objects;
+class ObjectManager
+{
+    ////////////////
+    /* Properties */
+    ////////////////
 
-    public ObjectManager()
+    protected ArrayList<SecureObject> objects;
+
+    /////////////////
+    /* Initializer */
+    /////////////////
+
     {
-        objects = new ArrayList<BLPobject>();
+        this.setObjects(new ArrayList<>());
     }
-    
-    private boolean exists(String name)
+
+    //////////////////////////
+    /* Accessors & Mutators */
+    //////////////////////////
+
+    private ArrayList<SecureObject> getObjects()
     {
-        return objects.contains(new BLPobject(name));
+        return this.objects;
     }
-    
-    public BLPobject get(String name)
+
+    private void setObjects(ArrayList<SecureObject> objects)
     {
-        for(BLPobject obj: objects)
-            if(obj.name.equals(name.toLowerCase()))
-                return obj;
+        this.objects = objects;
+    }
+
+    ////////////////////
+    /* Helper Methods */
+    ////////////////////
+
+    protected SecureObject getNewInstance(String name)
+    {
+        return new SecureObject(name);
+    }
+
+    protected SecureObject getByName(String name)
+    {
+        for (SecureObject candidate : getObjects())
+        {
+            if (candidate != null && candidate.getName().equalsIgnoreCase(name))
+            {
+                return candidate;
+            }
+        }
+
         return null;
     }
-    
-    public int read(String name)
+
+    protected boolean existsWithName(String objectName)
     {
-        if(exists(name))
-            return get(name).value;
-        return 0;
+        return getByName(objectName) != null;
     }
-    
-    public boolean write(String name, int value)
+
+    private void addNewByName(String objectName)
     {
-        if(exists(name))
+        if (objectName != null && !existsWithName(objectName))
         {
-            get(name).setValue(value);
-            return true;
+            SecureObject object = getNewInstance(objectName);
+            if (!getObjects().contains(object))
+            {
+                getObjects().add(object);
+            }
         }
-        return false;
     }
-    
-    public BLPobject createObject(String name)
+
+    private void removeByName(String objectName)
     {
-        if(exists(name))
-            return null;
-        BLPobject obj = new BLPobject(name);
-        return objects.add(obj) ? obj : null;
+        getObjects().remove(getByName(objectName));
     }
-    
-    public BLPobject createObject(String name, int value)
+
+    /////////////////////
+    /* Package Methods */
+    /////////////////////
+
+    boolean exists(String name)
     {
-        BLPobject obj = createObject(name);
-        if(obj != null)
-            write(name, value);
-        return obj;
+        return existsWithName(name);
+    }
+
+    void add(String name)
+    {
+        addNewByName(name);
+    }
+
+    void remove(String name)
+    {
+        removeByName(name);
+    }
+
+    void write(String name, int value)
+    {
+        SecureObject blp_object = getByName(name);
+        if (blp_object != null)
+        {
+            blp_object.setValue(value);
+        }
+    }
+
+    int read(String name)
+    {
+        SecureObject object = getByName(name);
+        return object == null ? 0 : object.getValue();
     }
 }

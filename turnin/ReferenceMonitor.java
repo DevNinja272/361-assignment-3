@@ -4,189 +4,335 @@
  * and open the template in the editor.
  */
 
+import java.io.Closeable;
+import java.io.IOException;
+import java.io.PrintWriter;
 import java.util.ArrayList;
+import java.util.function.Consumer;
+import java.util.function.IntSupplier;
 
 /**
- *
  * @author jinwook
  */
-public class ReferenceMonitor 
+class ReferenceMonitor implements Closeable
 {
-    protected ObjectManager objMan;
-    protected ArrayList<SecurityInfo> subjSecurityInfoList;
-    protected ArrayList<SecurityInfo> objSecurityInfoList;
-    
-    public ReferenceMonitor()
+    ////////////////
+    /* Properties */
+    ////////////////
+
+    private final SubjectManager          subjectManager;
+    private final ObjectManager           objectManager;
+    private final ArrayList<SecurityInfo> subjectSIList;
+    private final ArrayList<SecurityInfo> objectSIList;
+    private       PrintWriter             printWriter;
+
+    /////////////////
+    /* Initializer */
+    /////////////////
+
     {
-        objMan = new ObjectManager();
-        subjSecurityInfoList = new ArrayList<SecurityInfo>();
-        objSecurityInfoList = new ArrayList<SecurityInfo>();
+        subjectManager = new SubjectManager();
+        objectManager = new ObjectManager();
+        subjectSIList = new ArrayList<>();
+        objectSIList = new ArrayList<>();
     }
 
-    protected class SecurityInfo
+    //////////////////////////
+    /* Accessors & Mutators */
+    //////////////////////////
+
+    private SubjectManager getSubjectManager()
+    { return this.subjectManager; }
+
+    private ObjectManager getObjectManager()
+    { return this.objectManager; }
+
+    private ArrayList<SecurityInfo> getSubjectSIList()
+    { return this.subjectSIList; }
+
+    private ArrayList<SecurityInfo> getObjectSIList()
+    { return this.objectSIList; }
+
+    private PrintWriter getPrintWriter()
+    { return this.printWriter; }
+
+    private void setPrintWriter(PrintWriter printWriter)
+    { this.printWriter = printWriter; }
+
+    ////////////////////////
+    /* SecurityInfo Class */
+    ////////////////////////
+
+    private class SecurityInfo
     {
-        protected SecurityLevel level;
-        protected Object item;
-        
-        public SecurityInfo(Object item, SecurityLevel level)
+        /* Properties */
+        final SecurityLevel level;
+        final String        name;
+
+        /* Constructor */
+        SecurityInfo(String name, SecurityLevel level)
         {
             this.level = level;
-            this.item = item;
+            this.name = name;
+        }
+
+        /* Accessors & Mutators */
+        String getName()
+        { return this.name; }
+
+        SecurityLevel getLevel()
+        { return this.level; }
+
+        /* Helper Methods */
+        boolean isValid()
+        {
+            return getLevel() != null && getName() != null;
         }
     }
-    
-    private SecurityLevel getSubjSecurityLevel(Object item)
+
+    ////////////////////
+    /* Helper Methods */
+    ////////////////////
+
+    private SecurityInfo getSIFromSIListByName(String name, ArrayList<SecurityInfo> siList)
     {
-        for(SecurityInfo si: subjSecurityInfoList)
+        if (siList != null)
         {
-            if (si != null && si.item != null && si.item instanceof BLPsubject)
+            for (SecurityInfo si : siList)
             {
-                if (((BLPsubject)(si.item)).equals(item)) {
-                    return si.level;
+                if (areValidSI(si) && si.getName().equalsIgnoreCase(name))
+                {
+                    return si;
                 }
             }
         }
+
         return null;
     }
 
-    private SecurityLevel getObjSecurityLevel(Object item)
+    private SecurityInfo getSubjectSecurityInfo(String name)
+    { return getSIFromSIListByName(name, getSubjectSIList()); }
+
+    private SecurityInfo getObjectSecurityInfo(String name)
+    { return getSIFromSIListByName(name, getObjectSIList()); }
+
+    private boolean existsByName(String itemName, ObjectManager manager)
+    { return manager.exists(itemName); }
+
+    private boolean subjectExists(String subjectName)
+    { return existsByName(subjectName, getSubjectManager()); }
+
+    private boolean objectExists(String objectName)
+    { return existsByName(objectName, getObjectManager()); }
+
+    private boolean areValidSI(SecurityInfo... siList)
     {
-        for(SecurityInfo si: objSecurityInfoList)
+        for (SecurityInfo si : siList)
         {
-            if(si.item.equals(item))
+            if (si == null || !si.isValid())
             {
-                return si.level;
-            }
-        }
-        return null;
-    }
-
-    public void createSubjectEntry(BLPsubject subj, SecurityLevel level)
-    {
-        subjSecurityInfoList.add(new SecurityInfo(subj, level));
-    }
-
-    public void createObject(String name, SecurityLevel level)
-    {
-        BLPobject obj = objMan.createObject(name);
-        if (obj != null)
-        {
-            objSecurityInfoList.add(new SecurityInfo(obj.getName(), level));
-        }
-    }
-
-    public void printState()
-    {
-        System.out.println("The current state is:");
-        for(SecurityInfo si: objSecurityInfoList)
-        {
-            if (si != null && si.item != null) 
-            {
-                BLPobject obj = objMan.get(si.item.toString());
-                String s = "\t" + obj.getName() + " has value: " + obj.getValue();
-                System.out.println(s);
+                return false;
             }
         }
 
-        for(SecurityInfo si: subjSecurityInfoList)
+        return true;
+    }
+
+    private void createObject(SecurityInfo si,
+                              ArrayList<SecurityInfo> siList,
+                              ObjectManager manager)
+    {
+        if (areValidSI(si) && !manager.exists(si.getName()))
         {
-            if (si != null && si.item != null && si.item instanceof BLPsubject) 
+            siList.add(si);
+            manager.add(si.getName());
+        }
+    }
+
+    private void createObject(String name, SecurityLevel level)
+    {
+        createObject(new SecurityInfo(name, level), getObjectSIList(), getObjectManager());
+    }
+
+    private void createSubject(String name, SecurityLevel level)
+    {
+        createObject(new SecurityInfo(name, level), getSubjectSIList(), getSubjectManager());
+    }
+
+    private void destroyObject(String objectName)
+    {
+        getObjectManager().remove(objectName);
+        getObjectSIList().remove(getObjectSecurityInfo(objectName));
+    }
+
+    private boolean canCreate(SecurityInfo subjectSI, SecurityInfo objectSI)
+    {
+        return areValidSI(subjectSI, objectSI)
+               && getSubjectManager().exists(subjectSI.getName())
+               && !getObjectManager().exists(objectSI.getName());
+    }
+
+    private boolean canWrite(SecurityInfo subjectSI, SecurityInfo objectSI)
+    {
+        return areValidSI(subjectSI, objectSI)
+               && subjectExists(subjectSI.getName())
+               && objectExists(objectSI.getName())
+               && objectSI.getLevel().dominates(subjectSI.getLevel());
+    }
+
+    private boolean canRead(SecurityInfo subjectSI, SecurityInfo objectSI)
+    {
+        return areValidSI(subjectSI, objectSI)
+               && subjectExists(subjectSI.getName())
+               && objectExists(objectSI.getName())
+               && subjectSI.getLevel().dominates(objectSI.getLevel());
+    }
+
+    private boolean canDestroy(SecurityInfo subjectSL, SecurityInfo objectSL)
+    {
+        return canWrite(subjectSL, objectSL);
+    }
+
+    private void logInstructionIfEnabled(Instruction instruction) throws IOException
+    {
+        PrintWriter printWriter = getPrintWriter();
+        if (printWriter != null)
+        {
+            printWriter.println(instruction == null ? "NULL INSTRUCTION" : instruction.toString());
+        }
+    }
+
+    /////////////////////
+    /* Package Methods */
+    /////////////////////
+
+    void enableLogging(String verbosePath) throws IOException
+    {
+        setPrintWriter(new PrintWriter(verbosePath));
+    }
+
+    void disableLogging() throws IOException
+    {
+        PrintWriter printWriter = getPrintWriter();
+        if (printWriter != null)
+        {
+            printWriter.close();
+            setPrintWriter(null);
+        }
+    }
+
+    void createSubject(String name, SecurityLevel level, Consumer<IntSupplier> code)
+    {
+        createSubject(name, level);
+        getSubjectManager().setSubjectCode(name, code);
+    }
+
+    void printState()
+    {
+        String printString = "The current state is:\n";
+
+        for (SecurityInfo si : getObjectSIList())
+        {
+            if (si != null && si.getName() != null)
             {
-                BLPsubject subj = (BLPsubject)si.item;
-                String s = "\t" + subj.getName() + " has recently read: " + subj.getTemp();
-                System.out.println(s);
+                printString += "\t"
+                               + si.getName()
+                               + " has value: "
+                               + getObjectManager().read(si.getName())
+                               + "\n";
             }
         }
 
-        System.out.println();
+        for (SecurityInfo si : getSubjectSIList())
+        {
+            if (si != null && si.getName() != null)
+            {
+                printString += "\t"
+                               + si.getName()
+                               + " has recently read: "
+                               + getSubjectManager().read(si.getName())
+                               + "\n";
+            }
+        }
     }
 
-    public void execute(InstructionObject instruction)
+    /**
+     * Executes the given instruction.
+     * @param instruction
+     * @throws IOException
+     */
+    void execute(Instruction instruction) throws IOException
     {
-        SecurityLevel objSL = getObjSecurityLevel(instruction.getObj());
-        SecurityLevel subjSL = getSubjSecurityLevel(instruction.getSubj());
+        logInstructionIfEnabled(instruction);
 
-        BadInstruction bi = null;
-        String result = null;
-        switch(instruction.getCommand())
+        if (instruction == null || !instruction.isValid())
         {
-            case "read":
-                result = instruction.getSubj()
-                        + " reads "
-                        + instruction.getObj();
+            return;
+        }
 
-                if(objSL == null || subjSL == null)
+        SecurityInfo objectSI  = getObjectSecurityInfo(instruction.getObjectName());
+        SecurityInfo subjectSI = getSubjectSecurityInfo(instruction.getSubjectName());
+
+        switch (instruction.getCommand())
+        {
+            case READ:
+                if (canRead(subjectSI, objectSI))
                 {
-                    // BAD INSTRUCTION - SYNTAX ERROR
-                    bi = new BadInstruction("READ: Invalid syntax. Object/Subject does not exist.");
+                    Integer value = getObjectManager().read(objectSI.getName());
+                    getSubjectManager().write(subjectSI.getName(), value);
                 }
-                else
+                else if (areValidSI(subjectSI))
                 {
-                    int value = objMan.read(instruction.getObj());
-                    if (!subjSL.dominates(objSL))
-                    {
-                        value = 0;
-                    }
-
-                    for(SecurityInfo si: subjSecurityInfoList)
-                    {
-                        if (si != null && si.item != null && si.item instanceof BLPsubject)
-                        {
-                            BLPsubject subj = (BLPsubject) si.item;
-                            if (subj.getName().equals(instruction.getSubj()))
-                            {
-                                subj.setTemp(value);
-                                break;
-                            }
-                        }
-                    }
+                    getSubjectManager().write(subjectSI.getName(), 0);
                 }
                 break;
-            case "write":
-                Integer value;
-                try
+            case WRITE:
+                if (canWrite(subjectSI, objectSI))
                 {
-                    value = Integer.valueOf(instruction.getVal());
+                    getObjectManager().write(objectSI.getName(), instruction.getValue());
                 }
-                catch(NumberFormatException e)
+                break;
+            case CREATE:
+                objectSI = new SecurityInfo(instruction.getObjectName(),
+                                            subjectSI == null ? null : subjectSI.getLevel());
+                if (canCreate(subjectSI, objectSI))
                 {
-                    value = null;
+                    createObject(objectSI.getName(), objectSI.getLevel());
                 }
-
-                result = instruction.getSubj().toLowerCase()
-                        + " writes value "
-                        + value
-                        + " to "
-                        + instruction.getObj().toLowerCase();
-
-                if(objSL == null || subjSL == null || value == null)
+                break;
+            case DESTROY:
+                if (canDestroy(subjectSI, objectSI))
                 {
-                    // BAD INSTRUCTION - SYNTAX ERROR
-                    bi = new BadInstruction("WRITE: Invalid Syntax. Object/Subject/Value does not exist.");
+                    destroyObject(objectSI.getName());
                 }
-                else if (subjSL == SecurityLevel.HIGH && objSL == SecurityLevel.LOW)
+                break;
+            case RUN:
+                if (subjectSI != null)
                 {
-                    // BAD INSTRUCTION - PERMISSION DENIED
-                }
-                else
-                {
-                    if(!objMan.write(instruction.getObj(), value))
-                    {
-                        bi = new BadInstruction("Write failed.");
-                    }
+                    getSubjectManager().run(subjectSI.getName());
                 }
                 break;
             default:
-                // BAD INSTRUCTION - SYNTAX ERROR
-                bi = new BadInstruction("Command does not exist");
         }
+    }
 
-        if (bi != null)
+    ///////////////
+    /* Closeable */
+    ///////////////
+
+    public void close() throws IOException
+    {
+        PrintWriter printWriter = getPrintWriter();
+        if (printWriter != null)
         {
-            result = bi.toString();
+            try
+            {
+                printWriter.flush();
+            }
+            finally
+            {
+                printWriter.close();
+            }
         }
-
-        System.out.println(result != null ? result : new BadInstruction("Unknown error."));
-        printState();
     }
 }
