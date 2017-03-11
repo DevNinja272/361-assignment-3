@@ -38,8 +38,8 @@ public abstract class SteganographyImage implements Closeable, Iterable<Integer>
 
         public boolean hasNext()
         {
-            return y > SteganographyImage.this.bufferedImage.getHeight()
-                   && x > SteganographyImage.this.bufferedImage.getWidth();
+            return y < SteganographyImage.this.bufferedImage.getHeight()
+                   && x < SteganographyImage.this.bufferedImage.getWidth();
         }
     }
 
@@ -62,6 +62,11 @@ public abstract class SteganographyImage implements Closeable, Iterable<Integer>
     public int encodePixel(int pixel, int firstBit, int secondBit, int thirdBit)
     {
         return pixel | firstBit | secondBit << 8 | thirdBit << 16;
+    }
+
+    public Iterator iterator()
+    {
+        return this.new BufferedImageIterator();
     }
 
     public void close() throws IOException

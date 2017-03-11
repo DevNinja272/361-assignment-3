@@ -2,37 +2,42 @@ import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 
 import java.awt.image.BufferedImage;
 import java.io.IOException;
-import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.Iterator;
+import java.lang.IllegalArgumentException;
 
 public class SteganographyImageDecoder extends SteganographyImage
 {
-    private final InputBitStream inputBitStream;
+    private final OutputBitStream outputBitStream;
 
-    public SteganographyImageDecoder(BufferedImage bufferedImage, InputStream inputStream)
+    public SteganographyImageDecoder(BufferedImage bufferedImage, OutputStream outputStream)
             throws IOException
     {
-        super(bufferedImage, new InputBitStream(inputStream));
-        this.inputBitStream = (InputBitStream) super.bitStream;
+        super(bufferedImage, new OutputBitStream(new Base64DecodingStream(outputStream)));
+        this.outputBitStream = (OutputBitStream) super.bitStream;
     }
 
-    public Iterator iterator()
-    {
-        throw new NotImplementedException();
-        // return new SteganographyImage.BufferedImageIterator();
-    }
+    ////////////
+    /* Public */
+    ////////////
 
-    public byte[] read() throws IOException
+    public void decode() throws IOException
     {
-        for (Integer pixel : this)
+        try
         {
-            throw new NotImplementedException();
-            // this.inputBitStream.next()
-            // int bits[] = decodePixel(pixel);
+            for (Integer pixel : this)
+            {
+                int decodedPixel[] = decodePixel(pixel);
+
+                outputBitStream.write(decodedPixel[0]);
+                outputBitStream.write(decodedPixel[1]);
+                outputBitStream.write(decodedPixel[2]);
+                System.out.println(decodedPixel[0] + "" + decodedPixel[1] + "" + decodedPixel[2]);
+            }
         }
-
-        return null;
+        catch (IllegalArgumentException iae)
+        {
+            // Done parsing
+        }
     }
-
-    // private InputBitStream get
 }

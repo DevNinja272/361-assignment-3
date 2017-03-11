@@ -1,10 +1,9 @@
-import com.sun.istack.internal.NotNull;
 import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Base64;
+import java.util.Arrays;
 
 /**
  * Created by HP User on 3/7/2017.
@@ -15,40 +14,34 @@ public class Base64DecodingStream extends OutputStream
     /* Properties */
     ////////////////
 
-    private final InputStream inputStream;
-    private       byte[]      rawDataChunk;
-    private       byte[]      processedDataChunk;
-    private       int         currentByteIndex;
+    private final OutputStream outputStream;
+    private final byte[]       rawDataChunk;
+    private       int          currentByteIndex;
 
     //////////////////
     /* Constructors */
     //////////////////
 
-    public Base64DecodingStream(InputStream inputStream)
+    public Base64DecodingStream(OutputStream outputStream)
     {
-        this.inputStream = inputStream;
-        this.setRawDataChunk(new byte[Base64EncodingStream.ENCODED_CHUNK_SIZE]);
-        this.setProcessedDataChunk(new byte[Base64EncodingStream.UNENCODED_CHUNK_SIZE]);
+        this.outputStream = outputStream;
+        this.rawDataChunk = new byte[Base64EncodingStream.ENCODED_CHUNK_SIZE];
+
+        if (this.getOutputStream() == null)
+        {
+            this.setCurrentByteIndex(-1);
+        }
     }
 
     /////////////////////////
     /* Accesors & Mutators */
     /////////////////////////
 
-    private InputStream getInputStream()
-    { return this.inputStream; }
+    private OutputStream getOutputStream()
+    { return this.outputStream; }
 
     private byte[] getRawDataChunk()
     { return this.rawDataChunk; }
-
-    private void setRawDataChunk(byte[] rawDataChunk)
-    { this.rawDataChunk = rawDataChunk; }
-
-    private byte[] getProcessedDataChunk()
-    { return this.processedDataChunk; }
-
-    private void setProcessedDataChunk(byte[] processedDataChunk)
-    { this.processedDataChunk = processedDataChunk; }
 
     private int getCurrentByteIndex()
     { return this.currentByteIndex; }
@@ -60,16 +53,17 @@ public class Base64DecodingStream extends OutputStream
     /* Helper Methods */
     ////////////////////
 
-    private byte[] writeNextRawDataChunk() throws IOException
+    private void decodeAndWrite(byte[] buffer) throws IOException
     {
-        throw new NotImplementedException();
+        OutputStream outputStream = this.getOutputStream();
+        outputStream.write(Base64.getDecoder().decode(buffer));
     }
 
-    protected byte[] processRawDataChunk(byte[] rawDataChunk) throws IOException
+    private void refreshRawDataChunk()
     {
-        return (rawDataChunk == null || !(rawDataChunk.length > 0))
-               ? null
-               : Base64.getDecoder().decode(rawDataChunk);
+        byte buffer[] = this.getRawDataChunk();   
+        Arrays.fill(buffer, (byte) 0);
+        this.setCurrentByteIndex(0);
     }
 
     ////////////////////
@@ -79,22 +73,64 @@ public class Base64DecodingStream extends OutputStream
     @Override
     public void write(byte[] src) throws IOException
     {
-        throw new NotImplementedException();
+        if (this.getCurrentByteIndex() < 0)
+        {
+            return;
+        }
+         
+        int index = 0;
+        while (index < src.length)
+        {
+            this.write(src[index++]);
+        }
     }
 
     @Override
     public void write(int b) throws IOException
     {
-        throw new NotImplementedException();
+        byte rawDataChunk[]   = this.getRawDataChunk();
+        int  currentByteIndex = this.getCurrentByteIndex();
+
+        if (currentByteIndex < 0)
+        {
+            return;
+        }
+        else if (currentByteIndex >= rawDataChunk.length)
+        {
+            this.decodeAndWrite(rawDataChunk);
+            this.refreshRawDataChunk();
+        }
+
+        rawDataChunk[currentByteIndex] = (byte) b;
+        this.setCurrentByteIndex(++currentByteIndex);
     }
 
-    //////////////////////////////
-    /* Closeable Implementation */
-    //////////////////////////////
+    @Override
+    public void flush() throws IOException
+    {
+        byte rawDataChunk[]  = this.getRawDataChunk();
+        int currentByteIndex = this.getCurrentByteIndex();
+
+        if (currentByteIndex > 0 && currentByteIndex <= rawDataChunk.length)
+        {
+            if (currentByteIndex < rawDataChunk.length)
+            {
+                byte writtenBytes[] = new byte[currentByteIndex];
+                System.arraycopy(rawDataChunk, 0, writtenBytes, 0, writtenBytes.length);
+                rawDataChunk = writtenBytes;
+            }
+
+            this.decodeAndWrite(rawDataChunk);
+            this.refreshRawDataChunk();
+            this.getOutputStream().flush();
+        }
+    }
 
     @Override
     public void close() throws IOException
     {
-        this.getInputStream().close();
+        this.setCurrentByteIndex(-1);
+        this.flush();
+        this.getOutputStream().close();
     }
 }
