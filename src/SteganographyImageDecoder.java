@@ -37,7 +37,7 @@ public class SteganographyImageDecoder extends SteganographyImage
         }
         catch (IllegalArgumentException iae)
         {
-            // Done parsing
+            // Done parsing 
         }
     }
 }

@@ -45,5 +45,4 @@ No, that would be extremely difficult. Data could be encrypted, making it seem r
 Does this fit our definition of a covert channel? Explain your answer.
 
 [Answer 5]
-Yes, as information is being sent in a way not intended. It might not be a standard covert channel in that it doesn't use system metadata, etc., but it definitely repurposes something to be used to secretly send or receive information.s
-
+Yes, as information is being sent in a way not intended. It might not be a standard covert channel in that it doesn't use system metadata, etc., but it definitely repurposes something to be used to secretly send or receive information.

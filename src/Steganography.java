@@ -25,7 +25,7 @@ public class Steganography
         try
         {
 
-			File readImageFile = new File(args[1]); // parse to get format and name
+			File readImageFile = new File(args[1]); 
 
 			BufferedImage bufferedImage = ImageIO.read(readImageFile);
 			String imageType = getImageType(readImageFile);

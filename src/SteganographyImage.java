@@ -5,9 +5,6 @@ import java.io.InputStream;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 
-/**
- * Created by HP User on 3/5/2017.
- */
 public abstract class SteganographyImage implements Closeable, Iterable<Integer>
 {
     public class BufferedImageIterator implements Iterator<Integer>
